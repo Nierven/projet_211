@@ -1,4 +1,3 @@
-from fem_resolution import *
 from source import *
 
 from time import time
@@ -13,15 +12,18 @@ import numpy as np
 # =====================
 
 # map(width, dx, k, m)
-m = map(10, 0.2, 0.1, 0.01)
+width = 50
+dx = 1
+mass = 4/3*np.pi*dx**3 * 1.2e-3
+m = map(width, dx, 0.0005, mass)
 sources = []
 
 mult = 1.0
-map_range = np.arange(0, 10*mult)
+map_range = np.arange(0, width*mult)
 
 start_time = 2
 stop_time = 30
-time_speed = 1       # Time speed multiplier
+time_speed = 1     # Time speed multiplier
 fps = 10             # Frames per second
 dt = time_speed/fps
 
@@ -58,8 +60,8 @@ fig_plan = plt.figure(figsize=[8, 8])
 ax = fig_plan.gca()
 
 #ax.grid(True)
-ax.set_xlim(-2*mult, 12*mult)
-ax.set_ylim(-2*mult, 12*mult)
+ax.set_xlim(-2*mult, (width+2)*mult)
+ax.set_ylim(-2*mult, (width+2)*mult)
 
 #c = ax.pcolor([[acoustic_level(point(x/mult, y/mult)) for x in map_range] for y in map_range], vmin=0, vmax=100, cmap='bwr')
 #ax.scatter(positions_x, positions_y, s=20)
@@ -76,6 +78,20 @@ b_src = m.sources[0]
 f = 1
 a = 0.5
 
+global temps 
+temps = 0
+watching_boul =  m.boules[int(len(m.boules)/2)][int(len(m.boules)/2)+5]
+
+def velocity(dt):
+    # Velocity of the wave    
+    global temps
+    
+    temps += dt
+    if watching_boul.p.x-watching_boul.p_0.x >= a:
+        vitesse = sqrt((watching_boul.p.x - b_src.p.x)**2 + (watching_boul.p.y - b_src.p.y)**2)/temps
+        print("Wave velocity: {}".format(vitesse))
+    
+    
 global avg_ctime
 global cpt
 
@@ -85,7 +101,7 @@ cpt = 0
 def animate(t):
     global avg_ctime
     global cpt
-
+    
     # 2D animation
     if t >= start_time:
         # Get next source state
@@ -97,12 +113,14 @@ def animate(t):
 
         # Solve step time
         tstart = time()
-        m.resolution(dt)
+#        m.resolution(dt)
         tstop = time()
-
+        
         avg_ctime += tstop - tstart
         cpt += 1
-    
+        
+        velocity(dt)
+        
     boule_scatter.set_offsets(np.c_[[b.p.x for (i, j), b in np.ndenumerate(m.boules)], [b.p.y for (i, j), b in np.ndenumerate(m.boules)]])
     source_scatter.set_offsets(np.c_[[b.p.x for b in m.sources], [b.p.y for b in m.sources]])
 
@@ -113,5 +131,3 @@ anim = animation.FuncAnimation(fig_plan, animate, frames=times, interval = int(1
 
 ## Show the plot to the screen
 plt.show()
-
-print('average compute time: {} s'.format(avg_ctime / cpt))
