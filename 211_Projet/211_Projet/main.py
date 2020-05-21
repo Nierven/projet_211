@@ -15,10 +15,10 @@ import numpy as np
 width = 1
 dx = 0.05    #mm
 rho = 1.2e-3 #kg/m**3
-mass = 4/3*np.pi*dx**3 * rho * 1e9
-k = 1 # mN/mm
+mass = dx**3 * rho * 1e6 #ng
+k = 100 # mN/mm
 
-#ACCELERATION EN mili m/s**2
+#ACCELERATION m/s**2 *1e-12
 
 m = map(width, dx, k, mass)
 sources = []
@@ -93,7 +93,7 @@ def velocity(dt):
     
     temps += dt
     
-    if watching_boul.p - watching_boul.p_0 >=1e-12 :
+    if watching_boul.p.distance(watching_boul.p_0) >=1e-12 :
         vitesse = watching_boul.p_0.distance(b_src.p_0)/temps
         print("Wave velocity: {}".format(vitesse))
     
