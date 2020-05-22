@@ -22,23 +22,12 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="main.py" />
-    <Compile Include="data\acoustics.py" />
-    <Compile Include="fem_resolution.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="source.py">
+    <Compile Include="sound.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="utilities.py">
       <SubType>Code</SubType>
     </Compile>
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="data\" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="data\acoustics.vtk" />
-    <Content Include="data\room.mesh" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
