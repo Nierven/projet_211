@@ -9,10 +9,10 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 import numpy as np
 
-display = False
+display = True
 verbose = True
 deferred_mode = True
-gradient = True
+gradient = False
 
 # Variables & Constants
 # =====================
@@ -21,51 +21,62 @@ gradient = True
 room_width = 10            # m
 
 # Physical properties
-dx = 0.5                   # m
+dx = 0.25                  # m
 rho = 1.2e-3               # kg/m**3
-k = 0.01                 # mN/m
+k = 0.05                   # mN/m
 mass = dx**3 * rho         # ng
 
 # ACCELERATION = m/s**2 * 1e-12
 
 # Map properties
+global m
 m = Map(room_width, dx, k, mass)
 color_mult = 1.0
 colormap_range = np.arange(0, room_width*color_mult)
 
 # Time properties
 start_time = 1             # Time to start simulation [s]
-stop_time = 5              # Time to stop simulation  [s]
-time_speed = 1             # Time speed multiplier    [1]
+stop_time = 3              # Time to stop simulation  [s]
+dt = 0.01                 # Time interval            [s]
 fps = 30                   # Frames per second        [frame/s]
-dt = time_speed/fps        # Time interval            [s]
 
 times = np.arange(0, stop_time, dt)
 
-
-
-
 # Model & Resolution
 # ==================
+
 global speed
 global b_src
 
 m.add_source(room_width/2, room_width/2, 90)
 b_src = m.sources[0]
 
+h  = []
+hv = []
+ha = []
+ht = []
+
 def compute_velocity(dt):
     """Compute velocity of the wave"""
     global speed
     global b_src
     
-    watching_particle = m.particles[len(m.particles) // 2][len(m.particles) - 5]
+    watching_particle = m.particles[len(m.particles) // 2][len(m.particles) - 4]
     if 't' not in compute_velocity.__dict__: compute_velocity.t = 0
-    if 'max_speed' not in compute_velocity.__dict__: compute_velocity.max_speed = 0
+    if 'max_d' not in compute_velocity.__dict__: compute_velocity.max_d = 0
     compute_velocity.t += dt
     
-    if watching_particle.v.x >= compute_velocity.max_speed:
-        compute_velocity.max_speed = watching_particle.v.x
+    d = watching_particle.p.distance(watching_particle.p_0)
+    h.append(d)
+    hv.append(watching_particle.v.x)
+    ha.append(watching_particle.a.x)
+    ht.append(compute_velocity.t)
+
+    if d >= compute_velocity.max_d:
+        compute_velocity.max_d = d
         speed = b_src.particle.p_0.distance(watching_particle.p_0) / compute_velocity.t
+        return False
+    elif watching_particle.p.x - watching_particle.p_0.x < 1e-9:
         return False
     else:
         return True
@@ -76,7 +87,8 @@ particles_history = []
 sources_history = []
 
 def compute_all():
-    compute_velocity.done = False
+    compute_velocity.t = 0
+    compute_velocity.max_d = 0
     print_progress_bar(0, times[-1], prefix = 'Compute progress:', suffix = 'Complete', length = 50)
     for t in times:
         if t >= start_time:
@@ -91,13 +103,10 @@ def compute_step(t):
     global cpt
     global b_src
 
-
     # Get next source state
     if t < start_time + 0.5/f:
         b_src.particle.p.x = b_src.particle.p_0.x + a/2*(1 + sin((t-start_time) * 2*pi*f))
     else:
-        max_reached = compute_velocity(dt)
-        if max_reached: return True
         m.clear_sources()
 
     # Solve step time
@@ -114,73 +123,58 @@ def compute_step(t):
     avg_ctime += tstop - tstart
     cpt += 1
     
-    return False
+    max_reached = compute_velocity(dt)
+    return max_reached
 
-def get_speed(k,dx):
+def get_speed(k):
     global b_src
     global speed
+    global m
     
+    #m.k = k
     mass = dx**3 * rho
     m = Map(room_width, dx, k, mass)
     m.add_source(room_width/2, room_width/2, 90)
-    b_src = m.sources[0]    
+    b_src = m.sources[0]  
     compute_all()
     
     return speed
     
-    
-    
 # Problem optimization
 # ====================
 
-
 f = 1
-a = 1.5
+a = 1
 
-def cost(k, dx):
-    return (get_speed(k,dx)-340)**2    
-    
-step_k = 0.002  #0.03
-step_dx = 0.01  #0.35
+def cost(k):
+    return (get_speed(k)-340)**2
 
-def partial_derivatives(k, dx):
-    new_k = k + step_k
-    error_k = cost(k,dx)
-    new_error_k = cost(new_k,dx)
-    derivate_cost_k = -(new_error_k- error_k)/step_k
-    
-    new_dx = dx + step_dx
-    error_dx = error_k
-    new_error_dx = cost(k,new_dx)
-    derivate_cost_dx = -(new_error_dx- error_dx)/step_dx
-#    print("vitesse: {}".format(error_k**2+340))
-    return derivate_cost_k, derivate_cost_dx
-    
-def new_parameters(temporary_k, temporary_dx):
-    [derivate_cost_k, derivate_cost_dx] = partial_derivatives(temporary_k,temporary_dx)
-    new_k =  temporary_k - (learning_rate * derivate_cost_k)
-    new_dx = temporary_dx - (learning_rate * derivate_cost_dx)
-    return [new_k,new_dx]
-
-learning_rate = 0.01
+t0, t1 = 0.01, 100
+learning_rate = lambda n: t0 / (n + t1) #0.000001
 initial_k = k
-initial_dx = dx
 nber_iterations = 10
+step_k = 0.005  #0.03
+
+def partial_derivatives(k):
+    new_k = k + step_k
+    error_k = cost(k)
+    new_error_k = cost(new_k)
+    derivate_cost_k = (new_error_k - error_k)/step_k
+
+    return derivate_cost_k
  
 def gradient_descent():
     global speed
     temporary_k = initial_k
-    temporary_dx = initial_dx
     for i in range(nber_iterations):
-        [new_k, new_dx] = new_parameters(temporary_k, temporary_dx)
+        new_k = temporary_k - learning_rate(i) * partial_derivatives(temporary_k)
         temporary_k = new_k
-        temporary_dx = new_dx
-        print("k: {0}, dx: {1}, speed: {2}".format(temporary_k,temporary_dx, speed))
-    return [temporary_k, temporary_dx]         
+        print("k: {0}, speed: {1}".format(temporary_k, speed))
+    return temporary_k       
  
 if gradient:
-    [final_k, final_dx] = gradient_descent() 
-    print("After {0} iterations k = {1} and dx = {2}".format(nber_iterations, final_k, final_dx))
+    final_k = gradient_descent() 
+    print("After {0} iterations k = {1}".format(nber_iterations, final_k))
     
 
 # Solutions display
@@ -241,16 +235,13 @@ if display:
     # Show the plot to the screen
     plt.show()
 
-
-    
-
-
-
-
 # Show debug outputs
 if verbose:
     avg_ctime /= cpt
     print('Average step compute time: {} s'.format(avg_ctime))
-    
-#Show velocity
-print("Wave velocity: {}, dx: {}, k: {}".format(speed,dx,k)) 
+    print("Wave velocity: {}, dx: {}, k: {}".format(speed,dx,k))
+
+    plt.plot(ht, h)
+    #plt.plot(ht, hv)
+    #plt.plot(ht, ha)
+    plt.show()
